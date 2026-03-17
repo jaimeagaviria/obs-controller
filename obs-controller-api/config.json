@@ -1,0 +1,25 @@
+{
+  "homeTeam": "Jaula del Ángel Fabricato",
+  "awayTeam": "Alfa y Omega",
+  "tournamentName": "ASOBDIM Categoría Sub 9",
+  "enabledCameras": [
+    3,
+    2,
+    1,
+    4
+  ],
+  "obsHost": "localhost",
+  "obsPort": 4455,
+  "obsSceneNames": {
+    "1": "Escena Camara 1",
+    "2": "Escena Camara 2",
+    "3": "Escena Camara 3",
+    "4": "Escena Camara 4",
+    "5": "Escena Camara 5",
+    "6": "Escena Camara 6",
+    "ALL_CAMERAS": "Escena Todas",
+    "INTRO": "Escena Intro"
+  },
+  "replaySceneName": "Replay",
+  "replaySourceName": "ReplayVideo"
+}
