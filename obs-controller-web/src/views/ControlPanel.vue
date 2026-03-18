@@ -156,6 +156,9 @@
         <!-- Camera & Stream Control -->
         <CameraStreamControl :state="state" :send="send" />
 
+        <!-- Auto-Switcher AI Panel -->
+        <AutoSwitcherPanel :state="state" />
+
       </div>
     </section>
   </div>
@@ -165,6 +168,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useWebSocket } from '../composables/useWebSocket.js'
 import CameraStreamControl from '../components/CameraStreamControl.vue'
+import AutoSwitcherPanel from '../components/AutoSwitcherPanel.vue'
 import NoSleep from 'nosleep.js'
 
 const { state, send } = useWebSocket()

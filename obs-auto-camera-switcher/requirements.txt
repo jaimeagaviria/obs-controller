@@ -1,0 +1,8 @@
+ultralytics>=8.2.0
+openvino>=2024.0
+obsws-python>=1.7.0
+fastapi>=0.111.0
+uvicorn>=0.30.0
+opencv-python>=4.9.0
+websocket-client>=1.8.0
+numpy>=1.26.0

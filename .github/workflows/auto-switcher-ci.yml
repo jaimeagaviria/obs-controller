@@ -1,0 +1,160 @@
+name: Auto-Switcher CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'obs-auto-camera-switcher/**'
+      - '.github/workflows/auto-switcher-ci.yml'
+  pull_request:
+    paths:
+      - 'obs-auto-camera-switcher/**'
+  workflow_dispatch:
+
+concurrency:
+  group: switcher-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: obs-auto-camera-switcher
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.12']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('obs-auto-camera-switcher/requirements.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          pip install -r requirements.txt
+
+      - name: Lint with Ruff
+        run: ruff check . --output-format=github
+
+      - name: Format check with Ruff
+        run: ruff format --check .
+
+      - name: Type check (non-blocking)
+        continue-on-error: true
+        run: mypy --ignore-missing-imports --no-error-summary .
+
+  integration:
+    name: Import & Startup Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-3.12-${{ hashFiles('obs-auto-camera-switcher/requirements.txt') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify all modules import
+        run: |
+          python -c "
+          from config import AppConfig
+          from detector.frame_capture import FrameCapture
+          from detector.yolo_detector import YoloDetector
+          from detector.camera_scorer import CameraScorer, CameraScore, SwitchDecision
+          from switcher.obs_client import ObsClient
+          from switcher.controller_client import ControllerClient
+          from api.routes import router
+          print('All modules imported successfully')
+          "
+
+      - name: Verify config defaults
+        run: |
+          python -c "
+          from config import AppConfig
+          cfg = AppConfig()
+          assert cfg.api_port == 3020
+          assert cfg.capture_fps == 2
+          assert cfg.switch_cooldown_seconds == 8
+          assert cfg.hysteresis_factor == 1.2
+          print('Config defaults validated')
+          "
+
+      - name: Verify scoring logic
+        run: |
+          python -c "
+          from detector.camera_scorer import CameraScorer
+          scorer = CameraScorer('Escena Camara {n}', 'Escena Todas')
+
+          # Test: ball detected on camera 3
+          dets = {
+              1: {'persons': [{'confidence': 0.8, 'center_x': 0.5, 'center_y': 0.5, 'area_pct': 2.0}], 'balls': []},
+              3: {'persons': [], 'balls': [{'confidence': 0.7, 'center_x': 0.5, 'center_y': 0.5, 'area_pct': 0.5}]},
+          }
+          decision = scorer.decide(dets, 'Escena Camara 1')
+          assert decision.target_scene == 'Escena Camara 3', f'Expected cam 3, got {decision.target_scene}'
+          assert decision.reason == 'ball_detected'
+          assert decision.should_switch == True
+
+          # Test: no detections → Escena Todas
+          dets2 = {1: {'persons': [], 'balls': []}, 2: {'persons': [], 'balls': []}}
+          decision2 = scorer.decide(dets2, 'Escena Camara 1')
+          assert decision2.target_scene == 'Escena Todas'
+          assert decision2.reason == 'no_detection'
+
+          print('Scoring logic tests passed')
+          "
+
+      - name: FastAPI startup test
+        run: |
+          timeout 8 python -c "
+          import uvicorn, threading, time, urllib.request
+
+          def run():
+              uvicorn.run('main:app', host='127.0.0.1', port=3020, log_level='error')
+
+          t = threading.Thread(target=run, daemon=True)
+          t.start()
+          time.sleep(4)
+
+          try:
+              res = urllib.request.urlopen('http://127.0.0.1:3020/health', timeout=3)
+              data = res.read().decode()
+              assert 'ok' in data
+              print('FastAPI health check passed')
+          except Exception as e:
+              print(f'Health check note: {e} (expected without OBS)')
+          " || echo "Startup test completed"

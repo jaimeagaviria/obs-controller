@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+models/yolov8n*
+!models/.gitkeep
+*.pt
+*.onnx
+config.json
+.env

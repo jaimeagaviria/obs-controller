@@ -68,7 +68,8 @@ const state = {
   awayScore: 0,
   period: 1,
   matchTimeSeconds: 0,
-  matchRunning: false
+  matchRunning: false,
+  lastSceneChange: null
 };
 
 let obs = null;
@@ -503,7 +504,26 @@ wss.on('connection', (ws) => {
 
       case 'OBS_CONTROL':
         if (payload && payload.action) {
-          await handleObsControl(payload.action, payload);
+          if (payload.source === 'auto_switcher') {
+            // Auto-switcher already changed the scene via OBS directly
+            state.lastSceneChange = {
+              sceneName: payload.sceneName || null,
+              source: 'auto_switcher',
+              reason: payload.reason || null,
+              confidence: payload.confidence || 0,
+              timestamp: Date.now()
+            };
+            broadcastAll({ type: 'STATE_UPDATE', state });
+          } else {
+            state.lastSceneChange = {
+              sceneName: null,
+              source: 'manual',
+              reason: null,
+              confidence: null,
+              timestamp: Date.now()
+            };
+            await handleObsControl(payload.action, payload);
+          }
         }
         break;
 
