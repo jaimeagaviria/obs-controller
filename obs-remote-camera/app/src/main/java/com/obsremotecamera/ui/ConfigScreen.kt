@@ -73,7 +73,6 @@ fun ConfigScreen(
 
     var selectedCamera by remember(currentConfig) { mutableIntStateOf(currentConfig.cameraNumber) }
     var host by remember(currentConfig) { mutableStateOf(currentConfig.tailscaleHost) }
-    var basePort by remember(currentConfig) { mutableStateOf(currentConfig.srtBasePort.toString()) }
     var selectedResolution by remember(currentConfig) {
         mutableStateOf(
             resolutionOptions.find {
@@ -144,34 +143,6 @@ fun ConfigScreen(
                 }
             }
 
-            // Effective port display
-            val effectivePort = (basePort.toIntOrNull() ?: 5000) + selectedCamera
-            Text(
-                text = "Puerto SRT efectivo: $effectivePort",
-                color = Color.Gray,
-                fontSize = 13.sp
-            )
-
-            // Host field
-            OutlinedTextField(
-                value = host,
-                onValueChange = { host = it },
-                label = { Text("Host Tailscale") },
-                placeholder = { Text("obs-server.tail-xxxx.ts.net") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            // Base port field
-            OutlinedTextField(
-                value = basePort,
-                onValueChange = { basePort = it.filter { c -> c.isDigit() } },
-                label = { Text("Puerto SRT base") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.width(200.dp)
-            )
-
             // Resolution selector
             Text(
                 text = "Resolución",
@@ -220,6 +191,26 @@ fun ConfigScreen(
                 }
             }
 
+            // Host field
+            OutlinedTextField(
+                value = host,
+                onValueChange = { host = it },
+                label = { Text("Host SRT") },
+                placeholder = { Text("obs-server.tail-xxxx.ts.net") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Effective port (read-only, derived from camera number)
+            OutlinedTextField(
+                value = (5000 + selectedCamera).toString(),
+                onValueChange = {},
+                label = { Text("Puerto SRT") },
+                singleLine = true,
+                readOnly = true,
+                modifier = Modifier.width(200.dp)
+            )
+
             Spacer(modifier = Modifier.height(8.dp))
 
             // Save button
@@ -228,7 +219,7 @@ fun ConfigScreen(
                     val newConfig = AppConfig(
                         cameraNumber = selectedCamera,
                         tailscaleHost = host.trim(),
-                        srtBasePort = basePort.toIntOrNull() ?: 5000,
+                        srtBasePort = 5000,
                         resolutionWidth = selectedResolution.width,
                         resolutionHeight = selectedResolution.height,
                         fps = selectedResolution.fps,

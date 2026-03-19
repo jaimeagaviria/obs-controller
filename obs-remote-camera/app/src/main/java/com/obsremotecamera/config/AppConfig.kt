@@ -2,7 +2,7 @@ package com.obsremotecamera.config
 
 data class AppConfig(
     val cameraNumber: Int = 1,
-    val tailscaleHost: String = "",
+    val tailscaleHost: String = "100.108.32.54",
     val srtBasePort: Int = 5000,
     val resolutionWidth: Int = 1920,
     val resolutionHeight: Int = 1080,
@@ -23,6 +23,6 @@ data class AppConfig(
     val bitrateLabel: String get() = "${videoBitrateKbps / 1000} Mbps"
 
     fun buildSrtUrl(): String {
-        return "srt://$tailscaleHost:$effectivePort?latency=$srtLatencyMs&pbkeylen=16&pkt_size=1316"
+        return "srt://$tailscaleHost:$effectivePort/camera$cameraNumber?latency=$srtLatencyMs"
     }
 }

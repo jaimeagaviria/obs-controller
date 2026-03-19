@@ -2,10 +2,11 @@ package com.obsremotecamera.streaming
 
 import android.content.Context
 import android.media.MediaCodecList
-import android.view.SurfaceView
+import android.util.Log
 import com.obsremotecamera.config.AppConfig
 import com.pedro.common.ConnectChecker
 import com.pedro.library.srt.SrtCamera2
+import com.pedro.library.view.OpenGlView
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +25,7 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
     private val _currentBitrateKbps = MutableStateFlow(0L)
     val currentBitrateKbps: StateFlow<Long> = _currentBitrateKbps.asStateFlow()
 
-    fun attachSurface(surfaceView: SurfaceView) {
+    fun attachSurface(surfaceView: OpenGlView) {
         srtCamera = SrtCamera2(surfaceView, this)
     }
 
@@ -54,7 +55,8 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
             config.resolutionWidth,
             config.resolutionHeight,
             config.fps,
-            config.videoBitrateKbps * 1000
+            config.videoBitrateKbps * 1000,
+            0
         )
 
         val preparedAudio = camera.prepareAudio(
@@ -76,12 +78,13 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
     fun stopStream() {
         reconnectJob?.cancel()
         reconnectJob = null
+        currentConfig = null
+        _state.value = StreamState.Idle
+        _currentBitrateKbps.value = 0
         val camera = srtCamera ?: return
         if (camera.isStreaming) {
             camera.stopStream()
         }
-        _state.value = StreamState.Idle
-        _currentBitrateKbps.value = 0
     }
 
     fun isStreaming(): Boolean = srtCamera?.isStreaming == true
@@ -105,17 +108,22 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
     // --- ConnectChecker callbacks ---
 
     override fun onConnectionStarted(url: String) {
+        Log.d(TAG, "onConnectionStarted: $url")
         _state.value = StreamState.Connecting
     }
 
     override fun onConnectionSuccess() {
+        Log.d(TAG, "onConnectionSuccess")
         _state.value = StreamState.Streaming()
         reconnectJob?.cancel()
     }
 
     override fun onConnectionFailed(reason: String) {
-        _state.value = StreamState.Error(reason)
-        attemptReconnect()
+        Log.d(TAG, "onConnectionFailed: $reason")
+        if (_state.value !is StreamState.Idle) {
+            _state.value = StreamState.Reconnecting
+            scheduleReconnect()
+        }
     }
 
     override fun onNewBitrate(bitrate: Long) {
@@ -127,9 +135,10 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
     }
 
     override fun onDisconnect() {
-        if (_state.value !is StreamState.Idle) {
+        Log.d(TAG, "onDisconnect — state=${_state.value}")
+        if (_state.value is StreamState.Streaming) {
             _state.value = StreamState.Reconnecting
-            attemptReconnect()
+            scheduleReconnect()
         }
     }
 
@@ -141,21 +150,45 @@ class SrtStreamer(private val context: Context) : ConnectChecker {
         // SRT auth OK
     }
 
-    private fun attemptReconnect() {
+    // Programa UN solo intento tras un delay.
+    // onConnectionFailed/onDisconnect vuelven a llamar scheduleReconnect si hace falta.
+    private fun scheduleReconnect() {
         reconnectJob?.cancel()
         val config = currentConfig ?: return
         reconnectJob = scope.launch {
-            var delayMs = 3000L
-            val maxDelay = 30000L
-            while (isActive) {
-                delay(delayMs)
-                _state.value = StreamState.Reconnecting
-                val camera = srtCamera
-                if (camera != null && !camera.isStreaming) {
-                    camera.startStream(config.buildSrtUrl())
-                }
-                delayMs = (delayMs * 1.5).toLong().coerceAtMost(maxDelay)
+            delay(800L)
+            if (!isActive) return@launch
+            val camera = srtCamera ?: return@launch
+            Log.d(TAG, "reconnect attempt — isStreaming=${camera.isStreaming} isOnPreview=${camera.isOnPreview}")
+
+            // Siempre detener para resetear los encoders al estado inicial
+            try { camera.stopStream() } catch (_: Exception) {}
+            delay(200L)
+            if (!isActive) return@launch
+
+            // Re-preparar encoders (obligatorio tras stopStream)
+            val videoOk = camera.prepareVideo(
+                config.resolutionWidth, config.resolutionHeight,
+                config.fps, config.videoBitrateKbps * 1000, 0
+            )
+            val audioOk = camera.prepareAudio(
+                config.audioBitrateKbps * 1000, config.audioSampleRate, true
+            )
+            Log.d(TAG, "reconnect prepare — videoOk=$videoOk audioOk=$audioOk")
+
+            if (!camera.isOnPreview) camera.startPreview()
+
+            if (videoOk && audioOk) {
+                camera.startStream(config.buildSrtUrl())
+                Log.d(TAG, "reconnect startStream: ${config.buildSrtUrl()}")
             }
         }
+    }
+
+    // Mantener attemptReconnect como alias para compatibilidad
+    private fun attemptReconnect() = scheduleReconnect()
+
+    companion object {
+        private const val TAG = "SrtStreamer"
     }
 }

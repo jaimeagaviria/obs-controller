@@ -8,7 +8,9 @@
     <string name="tailscale_not_installed">Tailscale no instalado</string>
     <string name="install_tailscale">Instalar Tailscale</string>
     <string name="open_tailscale">Abrir Tailscale</string>
-    <string name="server_unreachable">No se puede conectar al PC. Verifica Tailscale en el PC.</string>
+    <string name="server_unreachable_title">OBS Studio no disponible</string>
+    <string name="server_unreachable">Verifica que OBS Studio esté ejecutándose en el PC.</string>
+    <string name="retry">Reintentar</string>
     <string name="config_title">Configuración</string>
     <string name="host_label">Host Tailscale</string>
     <string name="host_placeholder">obs-server.tail-xxxx.ts.net</string>

@@ -1,6 +1,7 @@
 package com.obsremotecamera.ui
 
-import android.view.SurfaceView
+import com.pedro.encoder.utils.gl.AspectRatioMode
+import com.pedro.library.view.OpenGlView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,14 +17,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Videocam
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Snackbar
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,7 +44,6 @@ import com.obsremotecamera.TailscaleStatus
 import com.obsremotecamera.streaming.StreamState
 import com.obsremotecamera.ui.components.BitrateOverlay
 import com.obsremotecamera.ui.components.LiveBadge
-import com.obsremotecamera.ui.components.TailscaleIndicator
 
 @Composable
 fun StreamScreen(
@@ -59,13 +55,16 @@ fun StreamScreen(
     val streamState by viewModel.streamState.collectAsState()
     val tailscaleStatus by viewModel.tailscaleStatus.collectAsState()
     val bitrateKbps by viewModel.currentBitrateKbps.collectAsState()
+
     val durationSeconds by viewModel.streamDurationSeconds.collectAsState()
     val context = LocalContext.current
 
     var showExitDialog by remember { mutableStateOf(false) }
     var showTailscaleDialog by remember { mutableStateOf(false) }
     var tailscaleDialogMessage by remember { mutableStateOf("") }
-    val snackbarHostState = remember { SnackbarHostState() }
+    var tailscaleDialogTitle by remember { mutableStateOf("Tailscale") }
+    var showServerUnreachableDialog by remember { mutableStateOf(false) }
+
 
     val isStreaming = streamState is StreamState.Streaming
     val isConnecting = streamState is StreamState.Connecting || streamState is StreamState.Reconnecting
@@ -79,18 +78,24 @@ fun StreamScreen(
     LaunchedEffect(tailscaleStatus) {
         when (tailscaleStatus) {
             TailscaleStatus.NOT_INSTALLED -> {
+                tailscaleDialogTitle = "Tailscale"
                 tailscaleDialogMessage = "Tailscale no está instalado. Instálalo desde Play Store."
                 showTailscaleDialog = true
+                showServerUnreachableDialog = false
             }
             TailscaleStatus.VPN_OFF -> {
+                tailscaleDialogTitle = "Tailscale"
                 tailscaleDialogMessage = "Abre Tailscale y conéctate a tu red."
                 showTailscaleDialog = true
+                showServerUnreachableDialog = false
             }
             TailscaleStatus.SERVER_UNREACHABLE -> {
-                snackbarHostState.showSnackbar("No se puede conectar al PC. Verifica Tailscale en el PC.")
+                showTailscaleDialog = false
+                showServerUnreachableDialog = true
             }
             else -> {
                 showTailscaleDialog = false
+                showServerUnreachableDialog = false
             }
         }
     }
@@ -99,7 +104,7 @@ fun StreamScreen(
     LaunchedEffect(tailscaleStatus, config.tailscaleHost) {
         if (tailscaleStatus == TailscaleStatus.CONNECTED &&
             config.tailscaleHost.isNotBlank() &&
-            streamState is StreamState.Idle
+            streamState !is StreamState.Streaming
         ) {
             viewModel.startStream()
         }
@@ -109,8 +114,15 @@ fun StreamScreen(
         // Camera preview (full screen)
         AndroidView(
             factory = { ctx ->
-                SurfaceView(ctx).also { surface ->
-                    viewModel.attachSurface(surface)
+                OpenGlView(ctx).also { surface ->
+                    surface.setAspectRatioMode(AspectRatioMode.Fill)
+                    surface.holder.addCallback(object : android.view.SurfaceHolder.Callback {
+                        override fun surfaceCreated(holder: android.view.SurfaceHolder) {
+                            viewModel.attachSurface(surface)
+                        }
+                        override fun surfaceChanged(holder: android.view.SurfaceHolder, format: Int, width: Int, height: Int) {}
+                        override fun surfaceDestroyed(holder: android.view.SurfaceHolder) {}
+                    })
                 }
             },
             modifier = Modifier.fillMaxSize(),
@@ -128,9 +140,6 @@ fun StreamScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.Top
         ) {
-            // Top-left: Tailscale indicator
-            TailscaleIndicator(status = tailscaleStatus)
-
             // Top-center: Camera number
             Text(
                 text = "Cámara ${config.cameraNumber}",
@@ -150,13 +159,11 @@ fun StreamScreen(
         }
 
         // Bottom overlay bar
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Bottom
+                .padding(16.dp)
         ) {
             // Bottom-left: Exit button
             FloatingActionButton(
@@ -169,7 +176,7 @@ fun StreamScreen(
                 },
                 containerColor = Color.Red.copy(alpha = 0.9f),
                 contentColor = Color.White,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(48.dp).align(Alignment.BottomStart),
                 shape = CircleShape
             ) {
                 Icon(Icons.Default.Close, contentDescription = "Salir")
@@ -179,14 +186,16 @@ fun StreamScreen(
             if (isStreaming || isConnecting) {
                 BitrateOverlay(
                     bitrateKbps = bitrateKbps,
-                    resolutionLabel = config.resolutionLabel
+                    resolutionLabel = config.resolutionLabel,
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
 
-            // Bottom-center-right: Start/Stop stream button
+            // Bottom-center: Start/Stop stream button
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 if (!isStreaming && !isConnecting) {
                     FloatingActionButton(
@@ -201,16 +210,6 @@ fun StreamScreen(
                         shape = CircleShape,
                     ) {
                         Icon(Icons.Default.Videocam, contentDescription = "Iniciar")
-                    }
-                } else if (isStreaming) {
-                    FloatingActionButton(
-                        onClick = { viewModel.stopStream() },
-                        containerColor = Color(0xFFFF5252),
-                        contentColor = Color.White,
-                        modifier = Modifier.size(56.dp),
-                        shape = CircleShape,
-                    ) {
-                        Icon(Icons.Default.Stop, contentDescription = "Detener")
                     }
                 }
 
@@ -242,18 +241,13 @@ fun StreamScreen(
                 onClick = onNavigateToConfig,
                 containerColor = Color.Gray.copy(alpha = 0.8f),
                 contentColor = Color.White,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(48.dp).align(Alignment.BottomEnd),
                 shape = CircleShape
             ) {
                 Icon(Icons.Default.Settings, contentDescription = "Configuración")
             }
         }
 
-        // Snackbar host
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 
     // Exit confirmation dialog
@@ -279,11 +273,34 @@ fun StreamScreen(
         )
     }
 
+    // PC unreachable dialog
+    if (showServerUnreachableDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerUnreachableDialog = false },
+            title = { Text("OBS Studio no disponible") },
+            text = {
+                Text("Verifica que OBS Studio esté ejecutándose en el PC.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.checkTailscale()
+                }) {
+                    Text("Reintentar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showServerUnreachableDialog = false }) {
+                    Text("Cerrar")
+                }
+            }
+        )
+    }
+
     // Tailscale dialog
     if (showTailscaleDialog) {
         AlertDialog(
             onDismissRequest = { showTailscaleDialog = false },
-            title = { Text("Tailscale") },
+            title = { Text(tailscaleDialogTitle) },
             text = { Text(tailscaleDialogMessage) },
             confirmButton = {
                 TextButton(onClick = {

@@ -17,19 +17,20 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.obsremotecamera.TailscaleStatus
+
+enum class ApiConnectionStatus {
+    DISCONNECTED, CONNECTING, CONNECTED
+}
 
 @Composable
-fun TailscaleIndicator(
-    status: TailscaleStatus,
+fun ApiIndicator(
+    status: ApiConnectionStatus,
     modifier: Modifier = Modifier
 ) {
     val (color, label) = when (status) {
-        TailscaleStatus.CHECKING -> Color(0xFFFFA500) to "VPN…"
-        TailscaleStatus.NOT_INSTALLED -> Color.Red to "VPN sin instalar"
-        TailscaleStatus.VPN_OFF -> Color.Red to "VPN desconectada"
-        TailscaleStatus.SERVER_UNREACHABLE -> Color(0xFF00C853) to "VPN"
-        TailscaleStatus.CONNECTED -> Color(0xFF00C853) to "VPN"
+        ApiConnectionStatus.DISCONNECTED -> Color.Red to "API desconectada"
+        ApiConnectionStatus.CONNECTING   -> Color(0xFFFFA500) to "API…"
+        ApiConnectionStatus.CONNECTED    -> Color(0xFF00C853) to "API"
     }
 
     Row(

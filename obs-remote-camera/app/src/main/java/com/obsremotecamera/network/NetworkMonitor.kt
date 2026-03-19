@@ -37,11 +37,22 @@ class NetworkMonitor(context: Context) {
     }
 
     fun startMonitoring() {
-        val request = NetworkRequest.Builder()
+        val internetRequest = NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
-        connectivityManager.registerNetworkCallback(request, networkCallback)
+        connectivityManager.registerNetworkCallback(internetRequest, networkCallback)
+
+        val vpnRequest = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_VPN)
+            .build()
+        connectivityManager.registerNetworkCallback(vpnRequest, networkCallback)
+
         _isVpnActive.value = checkVpnActive()
+    }
+
+    fun refresh() {
+        _isVpnActive.value = checkVpnActive()
+        _isNetworkAvailable.value = checkNetworkAvailable()
     }
 
     fun stopMonitoring() {

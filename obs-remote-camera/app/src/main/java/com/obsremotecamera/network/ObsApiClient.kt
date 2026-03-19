@@ -1,8 +1,12 @@
 package com.obsremotecamera.network
 
+import com.obsremotecamera.ui.components.ApiConnectionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -16,6 +20,9 @@ class ObsApiClient {
     private var webSocket: WebSocket? = null
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    private val _connectionStatus = MutableStateFlow(ApiConnectionStatus.DISCONNECTED)
+    val connectionStatus: StateFlow<ApiConnectionStatus> = _connectionStatus.asStateFlow()
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
@@ -24,13 +31,14 @@ class ObsApiClient {
 
     fun connect(host: String, port: Int = 3010) {
         disconnect()
+        _connectionStatus.value = ApiConnectionStatus.CONNECTING
         val request = Request.Builder()
             .url("ws://$host:$port/ws")
             .build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                // Connected to obs-controller-api
+                _connectionStatus.value = ApiConnectionStatus.CONNECTED
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
@@ -38,11 +46,11 @@ class ObsApiClient {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                // Reconnect handled by caller
+                _connectionStatus.value = ApiConnectionStatus.DISCONNECTED
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                // Connection closed
+                _connectionStatus.value = ApiConnectionStatus.DISCONNECTED
             }
         })
     }
@@ -77,5 +85,6 @@ class ObsApiClient {
     fun disconnect() {
         webSocket?.close(1000, "App closing")
         webSocket = null
+        _connectionStatus.value = ApiConnectionStatus.DISCONNECTED
     }
 }

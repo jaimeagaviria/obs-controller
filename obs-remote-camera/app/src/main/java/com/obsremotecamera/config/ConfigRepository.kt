@@ -27,7 +27,7 @@ class ConfigRepository(private val context: Context) {
     val configFlow: Flow<AppConfig> = context.dataStore.data.map { prefs ->
         AppConfig(
             cameraNumber = prefs[KEY_CAMERA_NUMBER] ?: 1,
-            tailscaleHost = prefs[KEY_TAILSCALE_HOST] ?: "",
+            tailscaleHost = prefs[KEY_TAILSCALE_HOST] ?: "100.108.32.54",
             srtBasePort = prefs[KEY_SRT_BASE_PORT] ?: 5000,
             resolutionWidth = prefs[KEY_RESOLUTION_WIDTH] ?: 1920,
             resolutionHeight = prefs[KEY_RESOLUTION_HEIGHT] ?: 1080,

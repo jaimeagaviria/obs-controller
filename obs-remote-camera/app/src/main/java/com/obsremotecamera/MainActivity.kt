@@ -21,6 +21,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.obsremotecamera.ui.ConfigScreen
+import com.obsremotecamera.ui.StartupCheckScreen
 import com.obsremotecamera.ui.StreamScreen
 
 class MainActivity : ComponentActivity() {
@@ -43,6 +44,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         val allGranted = requiredPermissions.all {
             ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
@@ -84,7 +86,20 @@ fun AppNavigation() {
     val context = LocalContext.current
     val viewModel: MainViewModel = viewModel()
 
-    NavHost(navController = navController, startDestination = "stream") {
+    NavHost(navController = navController, startDestination = "startup") {
+        composable("startup") {
+            StartupCheckScreen(
+                viewModel = viewModel,
+                onAllDone = {
+                    navController.navigate("stream") {
+                        popUpTo("startup") { inclusive = true }
+                    }
+                },
+                onExit = {
+                    (context as? Activity)?.finishAndRemoveTask()
+                }
+            )
+        }
         composable("stream") {
             StreamScreen(
                 viewModel = viewModel,

@@ -57,4 +57,23 @@ class TailscaleManager(private val context: Context) {
             }
         }
     }
+
+    suspend fun isObsConnected(host: String, port: Int = 3010): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$host:$port/health")
+                    .get()
+                    .build()
+                val response = httpClient.newCall(request).execute()
+                response.use {
+                    if (!it.isSuccessful) return@withContext false
+                    val body = it.body?.string() ?: return@withContext false
+                    org.json.JSONObject(body).optBoolean("obsConnected", false)
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
 }
