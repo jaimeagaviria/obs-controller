@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,6 +69,15 @@ fun StreamScreen(
 
     val isStreaming = streamState is StreamState.Streaming
     val isConnecting = streamState is StreamState.Connecting || streamState is StreamState.Reconnecting
+
+    // Mantener pantalla encendida mientras StreamScreen esté visible (sin timeout por inactividad)
+    val currentView = LocalView.current
+    DisposableEffect(Unit) {
+        currentView.keepScreenOn = true
+        onDispose {
+            currentView.keepScreenOn = false
+        }
+    }
 
     // Run Tailscale check on enter
     LaunchedEffect(Unit) {
