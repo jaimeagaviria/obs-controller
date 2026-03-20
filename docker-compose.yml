@@ -1,0 +1,56 @@
+services:
+  backend:
+    build:
+      context: ./obs-controller-api
+    ports:
+      - "3010:3010"
+    networks:
+      - obs-controller-net
+    environment:
+      - PORT=3010
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./obs-controller-web
+    ports:
+      - "5180:5180"
+    networks:
+      - obs-controller-net
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx
+    network_mode: host
+    volumes:
+      - ${MEDIAMTX_CONFIG_PATH}:/mediamtx.yml
+    restart: unless-stopped
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: obs-controller-server
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_ACCEPT_DNS=true
+    restart: unless-stopped
+
+networks:
+  obs-controller-net:
+    driver: bridge
+
+volumes:
+  tailscale-state:

@@ -7,7 +7,7 @@ const state = ref({
   awayTeam: '',
   tournamentName: '',
   enabledCameras: [1, 2, 3, 4],
-  obsHost: '192.168.1.53',
+  obsHost: '100.108.32.54',
   obsPort: 4455,
   obsSceneNames: {
     '1': 'Escena Camara 1',

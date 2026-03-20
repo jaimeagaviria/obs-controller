@@ -8,7 +8,7 @@
     1,
     4
   ],
-  "obsHost": "localhost",
+  "obsHost": "100.108.32.54",
   "obsPort": 4455,
   "obsSceneNames": {
     "1": "Escena Camara 1",
