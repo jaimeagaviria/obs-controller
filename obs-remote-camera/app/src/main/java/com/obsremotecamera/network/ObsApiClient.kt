@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -86,5 +87,47 @@ class ObsApiClient {
         webSocket?.close(1000, "App closing")
         webSocket = null
         _connectionStatus.value = ApiConnectionStatus.DISCONNECTED
+    }
+
+    suspend fun isServerReachable(host: String, port: Int = 3010): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$host:$port/health")
+                    .get()
+                    .build()
+                val response = OkHttpClient.Builder()
+                    .connectTimeout(3, TimeUnit.SECONDS)
+                    .readTimeout(3, TimeUnit.SECONDS)
+                    .build()
+                    .newCall(request).execute()
+                response.use { it.isSuccessful }
+            } catch (_: Exception) {
+                false
+            }
+        }
+    }
+
+    suspend fun isObsConnected(host: String, port: Int = 3010): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = Request.Builder()
+                    .url("http://$host:$port/health")
+                    .get()
+                    .build()
+                val response = OkHttpClient.Builder()
+                    .connectTimeout(3, TimeUnit.SECONDS)
+                    .readTimeout(3, TimeUnit.SECONDS)
+                    .build()
+                    .newCall(request).execute()
+                response.use {
+                    if (!it.isSuccessful) return@withContext false
+                    val body = it.body?.string() ?: return@withContext false
+                    JSONObject(body).optBoolean("obsConnected", false)
+                }
+            } catch (_: Exception) {
+                false
+            }
+        }
     }
 }

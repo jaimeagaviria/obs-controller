@@ -20,12 +20,12 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,14 +34,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.obsremotecamera.MainViewModel
-import com.obsremotecamera.TailscaleStatus
 import com.obsremotecamera.streaming.StreamState
 import com.obsremotecamera.ui.components.BitrateOverlay
 import com.obsremotecamera.ui.components.LiveBadge
@@ -54,17 +52,11 @@ fun StreamScreen(
 ) {
     val config by viewModel.config.collectAsState()
     val streamState by viewModel.streamState.collectAsState()
-    val tailscaleStatus by viewModel.tailscaleStatus.collectAsState()
     val bitrateKbps by viewModel.currentBitrateKbps.collectAsState()
 
     val durationSeconds by viewModel.streamDurationSeconds.collectAsState()
-    val context = LocalContext.current
 
     var showExitDialog by remember { mutableStateOf(false) }
-    var showTailscaleDialog by remember { mutableStateOf(false) }
-    var tailscaleDialogMessage by remember { mutableStateOf("") }
-    var tailscaleDialogTitle by remember { mutableStateOf("Tailscale") }
-    var showServerUnreachableDialog by remember { mutableStateOf(false) }
 
 
     val isStreaming = streamState is StreamState.Streaming
@@ -79,44 +71,18 @@ fun StreamScreen(
         }
     }
 
-    // Run Tailscale check on enter
-    LaunchedEffect(Unit) {
-        viewModel.checkTailscale()
-    }
-
-    // Handle Tailscale status changes
-    LaunchedEffect(tailscaleStatus) {
-        when (tailscaleStatus) {
-            TailscaleStatus.NOT_INSTALLED -> {
-                tailscaleDialogTitle = "Tailscale"
-                tailscaleDialogMessage = "Tailscale no está instalado. Instálalo desde Play Store."
-                showTailscaleDialog = true
-                showServerUnreachableDialog = false
-            }
-            TailscaleStatus.VPN_OFF -> {
-                tailscaleDialogTitle = "Tailscale"
-                tailscaleDialogMessage = "Abre Tailscale y conéctate a tu red."
-                showTailscaleDialog = true
-                showServerUnreachableDialog = false
-            }
-            TailscaleStatus.SERVER_UNREACHABLE -> {
-                showTailscaleDialog = false
-                showServerUnreachableDialog = true
-            }
-            else -> {
-                showTailscaleDialog = false
-                showServerUnreachableDialog = false
-            }
-        }
-    }
-
-    // Auto-start stream when Tailscale connects and host is configured
-    LaunchedEffect(tailscaleStatus, config.tailscaleHost) {
-        if (tailscaleStatus == TailscaleStatus.CONNECTED &&
-            config.tailscaleHost.isNotBlank() &&
-            streamState !is StreamState.Streaming
+    // Auto-start stream on enter if host is configured.
+    // Delay guards against race with MainViewModel's camera-change restart:
+    // when returning from ConfigScreen, StreamScreen recomposes and this
+    // LaunchedEffect runs while MainViewModel is mid-way through stop→start.
+    LaunchedEffect(config.srtHost) {
+        if (config.srtHost.isNotBlank() &&
+            viewModel.streamState.value is StreamState.Idle
         ) {
-            viewModel.startStream()
+            delay(500)
+            if (viewModel.streamState.value is StreamState.Idle) {
+                viewModel.startStream()
+            }
         }
     }
 
@@ -210,7 +176,7 @@ fun StreamScreen(
                 if (!isStreaming && !isConnecting) {
                     FloatingActionButton(
                         onClick = {
-                            if (config.tailscaleHost.isNotBlank()) {
+                            if (config.srtHost.isNotBlank()) {
                                 viewModel.startStream()
                             }
                         },
@@ -283,66 +249,4 @@ fun StreamScreen(
         )
     }
 
-    // PC unreachable dialog
-    if (showServerUnreachableDialog) {
-        AlertDialog(
-            onDismissRequest = { showServerUnreachableDialog = false },
-            title = { Text("OBS Studio no disponible") },
-            text = {
-                Text("Verifica que OBS Studio esté ejecutándose en el PC.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.checkTailscale()
-                }) {
-                    Text("Reintentar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showServerUnreachableDialog = false }) {
-                    Text("Cerrar")
-                }
-            }
-        )
-    }
-
-    // Tailscale dialog
-    if (showTailscaleDialog) {
-        AlertDialog(
-            onDismissRequest = { showTailscaleDialog = false },
-            title = { Text(tailscaleDialogTitle) },
-            text = { Text(tailscaleDialogMessage) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showTailscaleDialog = false
-                    when (tailscaleStatus) {
-                        TailscaleStatus.NOT_INSTALLED -> {
-                            context.startActivity(viewModel.tailscaleManager.getPlayStoreIntent())
-                        }
-                        TailscaleStatus.VPN_OFF -> {
-                            viewModel.tailscaleManager.getLaunchIntent()?.let {
-                                context.startActivity(it)
-                            }
-                        }
-                        else -> {}
-                    }
-                    // Re-check after user action
-                    viewModel.checkTailscale()
-                }) {
-                    Text(
-                        when (tailscaleStatus) {
-                            TailscaleStatus.NOT_INSTALLED -> "Instalar Tailscale"
-                            TailscaleStatus.VPN_OFF -> "Abrir Tailscale"
-                            else -> "OK"
-                        }
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showTailscaleDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
 }

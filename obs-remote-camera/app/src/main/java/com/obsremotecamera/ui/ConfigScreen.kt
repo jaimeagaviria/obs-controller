@@ -72,7 +72,8 @@ fun ConfigScreen(
     val currentConfig by viewModel.config.collectAsState()
 
     var selectedCamera by remember(currentConfig) { mutableIntStateOf(currentConfig.cameraNumber) }
-    var host by remember(currentConfig) { mutableStateOf(currentConfig.tailscaleHost) }
+    var host by remember(currentConfig) { mutableStateOf(currentConfig.srtHost) }
+    var obsApiHost by remember(currentConfig) { mutableStateOf(currentConfig.obsApiHost) }
     var selectedResolution by remember(currentConfig) {
         mutableStateOf(
             resolutionOptions.find {
@@ -191,24 +192,34 @@ fun ConfigScreen(
                 }
             }
 
-            // Host field
+            // SRT server (MediaMTX)
             OutlinedTextField(
                 value = host,
                 onValueChange = { host = it },
-                label = { Text("Host SRT") },
-                placeholder = { Text("obs-server.tail-xxxx.ts.net") },
+                label = { Text("Servidor SRT (MediaMTX)") },
+                placeholder = { Text("100.51.43.233") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Effective port (read-only, derived from camera number)
+            // OBS controller API
             OutlinedTextField(
-                value = (5000 + selectedCamera).toString(),
+                value = obsApiHost,
+                onValueChange = { obsApiHost = it },
+                label = { Text("Controlador OBS (API)") },
+                placeholder = { Text("100.108.32.54") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Stream ID (read-only, derived from camera number)
+            OutlinedTextField(
+                value = "publish:cam$selectedCamera",
                 onValueChange = {},
-                label = { Text("Puerto SRT") },
+                label = { Text("Stream ID") },
                 singleLine = true,
                 readOnly = true,
-                modifier = Modifier.width(200.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -218,8 +229,9 @@ fun ConfigScreen(
                 onClick = {
                     val newConfig = AppConfig(
                         cameraNumber = selectedCamera,
-                        tailscaleHost = host.trim(),
-                        srtBasePort = 5000,
+                        srtHost = host.trim(),
+                        srtBasePort = 8890,
+                        obsApiHost = obsApiHost.trim(),
                         resolutionWidth = selectedResolution.width,
                         resolutionHeight = selectedResolution.height,
                         fps = selectedResolution.fps,

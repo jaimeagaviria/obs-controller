@@ -1,6 +1,5 @@
 package com.obsremotecamera.ui
 
-import android.app.Activity
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -31,7 +30,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -51,9 +49,6 @@ fun StartupCheckScreen(
 ) {
     val steps by viewModel.prerequisiteSteps.collectAsState()
     val allDone by viewModel.prerequisitesDone.collectAsState()
-    val context = LocalContext.current
-    val vpnFailed = steps[0].status == StepStatus.FAILED
-
     LaunchedEffect(Unit) {
         viewModel.runPrerequisiteChecks()
     }
@@ -140,17 +135,6 @@ fun StartupCheckScreen(
             // Action buttons (only on failure)
             if (hasFailed) {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (vpnFailed) {
-                        Button(
-                            onClick = {
-                                viewModel.tailscaleManager.getLaunchIntent()
-                                    ?.let { context.startActivity(it) }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
-                        ) {
-                            Text("Abrir Tailscale")
-                        }
-                    }
                     OutlinedButton(
                         onClick = { viewModel.runPrerequisiteChecks() },
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
