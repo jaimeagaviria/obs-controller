@@ -45,7 +45,8 @@ import com.obsremotecamera.StepStatus
 fun StartupCheckScreen(
     viewModel: MainViewModel,
     onAllDone: () -> Unit,
-    onExit: () -> Unit
+    onExit: () -> Unit,
+    onOpenConfig: () -> Unit = {}
 ) {
     val steps by viewModel.prerequisiteSteps.collectAsState()
     val allDone by viewModel.prerequisitesDone.collectAsState()
@@ -141,6 +142,13 @@ fun StartupCheckScreen(
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF616161))
                     ) {
                         Text("Reintentar")
+                    }
+                    OutlinedButton(
+                        onClick = onOpenConfig,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF90CAF9)),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF1565C0))
+                    ) {
+                        Text("Configurar")
                     }
                     Button(
                         onClick = onExit,

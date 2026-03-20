@@ -30,7 +30,7 @@ class ConfigRepository(private val context: Context) {
             cameraNumber = prefs[KEY_CAMERA_NUMBER] ?: 1,
             srtHost = prefs[KEY_SRT_HOST] ?: "100.51.43.233",
             srtBasePort = prefs[KEY_SRT_BASE_PORT] ?: 8890,
-            obsApiHost = prefs[KEY_OBS_API_HOST] ?: "100.108.32.54",
+            obsApiHost = prefs[KEY_OBS_API_HOST] ?: "100.51.43.233",
             resolutionWidth = prefs[KEY_RESOLUTION_WIDTH] ?: 1920,
             resolutionHeight = prefs[KEY_RESOLUTION_HEIGHT] ?: 1080,
             fps = prefs[KEY_FPS] ?: 30,

@@ -96,6 +96,9 @@ fun AppNavigation() {
                 },
                 onExit = {
                     (context as? Activity)?.finishAndRemoveTask()
+                },
+                onOpenConfig = {
+                    navController.navigate("config")
                 }
             )
         }
