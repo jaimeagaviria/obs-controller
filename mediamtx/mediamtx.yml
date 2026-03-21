@@ -1,0 +1,60 @@
+###############################################################################
+# MediaMTX — OBS Football Camera Controller
+#
+# SRT ingest:   port 8890  (Android app publica aquí)
+#   streamid format: publish:cam{N}  →  path cam{N}
+#
+# WebRTC egress: port 8889  (browser preview, latencia ~200ms)
+#   URL player:  http://servidor:8889/cam{N}
+#
+# HLS egress:   port 8888  (fallback, latencia ~3-5s)
+#   URL m3u8:   http://servidor:8888/cam{N}/index.m3u8
+#
+# API REST:     port 9997  (consultar estado de streams activos)
+###############################################################################
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+logLevel: warn
+logDestinations: [stdout]
+
+# ── API REST (para consultar streams activos desde el backend Node.js) ───────
+api: yes
+apiAddress: :9997
+
+# ── SRT ingest ───────────────────────────────────────────────────────────────
+srtAddress: :8890
+
+# ── WebRTC (WHEP) ────────────────────────────────────────────────────────────
+# El browser se conecta directamente al servidor para preview de baja latencia.
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigins: ['*']
+# Puerto UDP fijo para ICE (evita rango de puertos aleatorio — facilita Tailscale/firewall)
+webrtcLocalUDPAddress: :8189
+webrtcAdditionalHosts: []
+
+# ── HLS (fallback) ───────────────────────────────────────────────────────────
+hls: yes
+hlsAddress: :8888
+hlsAllowOrigins: ['*']
+# LL-HLS reduce latencia de ~10s a ~2-4s
+hlsPartDuration: 200ms
+hlsSegmentDuration: 1s
+
+# ── RTSP (no se usa, desactivado para reducir superficie de ataque) ──────────
+rtsp: no
+rtmp: no
+
+# ── Paths de cámaras ─────────────────────────────────────────────────────────
+# Cada celular publica con: srt://servidor:8890/publish:cam{N}
+# MediaMTX extrae el path "cam{N}" del streamid "publish:cam{N}"
+#
+# Cuando no hay publisher activo, WebRTC/HLS devuelven 404 al browser.
+# No es necesario configurar source: ya que esperan publishers externos.
+paths:
+  cam1:
+  cam2:
+  cam3:
+  cam4:
+  cam5:
+  cam6:
