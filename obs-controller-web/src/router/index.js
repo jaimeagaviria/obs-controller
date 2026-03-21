@@ -6,6 +6,7 @@ import TournamentView from '../views/TournamentView.vue'
 import IntroView from '../views/IntroView.vue'
 import ReplayView from '../views/ReplayView.vue'
 import PreviewView from '../views/PreviewView.vue'
+import DownloadView from '../views/DownloadView.vue'
 
 const routes = [
   { path: '/', component: ControlPanel },
@@ -14,7 +15,8 @@ const routes = [
   { path: '/scoreboard', component: ScoreboardView },
   { path: '/tournament', component: TournamentView },
   { path: '/intro', component: IntroView },
-  { path: '/replay', component: ReplayView }
+  { path: '/replay', component: ReplayView },
+  { path: '/download', component: DownloadView }
 ]
 
 export default createRouter({

@@ -549,6 +549,11 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', obsConnected: state.obsConnected });
 });
 
+// Configuración pública consultada por las cámaras remotas al iniciar
+app.get('/state', (_req, res) => {
+  res.json({ enabledCameras: state.enabledCameras });
+});
+
 const PORT = process.env.PORT || 3010;
 server.listen(PORT, () => {
   console.log(`OBS Controller API running on port ${PORT}`);

@@ -48,6 +48,7 @@
             v-if="key"
             class="button grid-btn"
             :class="buttonClass(key)"
+            :disabled="!props.state.obsConnected"
             draggable="true"
             @dragstart="onDragStart(index)"
             @dragend="onDragEnd"

@@ -64,6 +64,27 @@ if ! docker context inspect "$CONTEXT_NAME" &>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------------
+# Subir mediamtx.yml al servidor si se despliega mediamtx o todo
+# ---------------------------------------------------------------------------
+DEPLOY_MEDIAMTX_CFG=false
+if [ -z "$SERVICES" ] || echo "$SERVICES" | grep -qw "mediamtx"; then
+  DEPLOY_MEDIAMTX_CFG=true
+fi
+
+if [ "$DEPLOY_MEDIAMTX_CFG" = "true" ] && [ -f "$SCRIPT_DIR/mediamtx/mediamtx.yml" ]; then
+  REMOTE_MEDIAMTX_DIR="${MEDIAMTX_CONFIG_PATH%/*}"
+  echo "📤 Subiendo mediamtx.yml → $DEPLOY_HOST:$MEDIAMTX_CONFIG_PATH"
+  ssh -i "$PEM_KEY" -o StrictHostKeyChecking=no "${DEPLOY_HOST}" "mkdir -p $REMOTE_MEDIAMTX_DIR"
+  scp -i "$PEM_KEY" -o StrictHostKeyChecking=no \
+    "$SCRIPT_DIR/mediamtx/mediamtx.yml" \
+    "${DEPLOY_HOST}:${MEDIAMTX_CONFIG_PATH}"
+  # Forzar restart para que mediamtx cargue el nuevo config
+  # (docker compose up no reinicia si la imagen no cambia)
+  echo "🔄 Reiniciando mediamtx para cargar nuevo config..."
+  ssh -i "$PEM_KEY" -o StrictHostKeyChecking=no "${DEPLOY_HOST}" "docker restart mediamtx 2>/dev/null || true"
+fi
+
+# ---------------------------------------------------------------------------
 # Desplegar
 # ---------------------------------------------------------------------------
 echo ""

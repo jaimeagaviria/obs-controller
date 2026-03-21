@@ -20,6 +20,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.obsremotecamera.ui.CameraSelectScreen
 import com.obsremotecamera.ui.ConfigScreen
 import com.obsremotecamera.ui.StartupCheckScreen
 import com.obsremotecamera.ui.StreamScreen
@@ -90,7 +91,7 @@ fun AppNavigation() {
             StartupCheckScreen(
                 viewModel = viewModel,
                 onAllDone = {
-                    navController.navigate("stream") {
+                    navController.navigate("camera_select") {
                         popUpTo("startup") { inclusive = true }
                     }
                 },
@@ -99,6 +100,16 @@ fun AppNavigation() {
                 },
                 onOpenConfig = {
                     navController.navigate("config")
+                }
+            )
+        }
+        composable("camera_select") {
+            CameraSelectScreen(
+                viewModel = viewModel,
+                onConfirmed = {
+                    navController.navigate("stream") {
+                        popUpTo("camera_select") { inclusive = true }
+                    }
                 }
             )
         }

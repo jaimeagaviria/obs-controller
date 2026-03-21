@@ -19,7 +19,7 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const showNav = computed(() => {
-  return route.path !== '/scoreboard' && route.path !== '/tournament' && route.path !== '/intro' && route.path !== '/replay'
+  return route.path !== '/scoreboard' && route.path !== '/tournament' && route.path !== '/intro' && route.path !== '/replay' && route.path !== '/download'
 })
 </script>
 

@@ -17,6 +17,10 @@ services:
       - "5180:5180"
     networks:
       - obs-controller-net
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - downloads:/downloads
     depends_on:
       - backend
     restart: unless-stopped
@@ -54,3 +58,4 @@ networks:
 
 volumes:
   tailscale-state:
+  downloads:

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -62,7 +63,9 @@ fun StartupCheckScreen(
     }
 
     val hasFailed = steps.any { it.status == StepStatus.FAILED }
+    val hasWarning = steps.any { it.status == StepStatus.WARNING }
     val failedStep = steps.firstOrNull { it.status == StepStatus.FAILED }
+    val warningStep = steps.firstOrNull { it.status == StepStatus.WARNING }
 
     Box(
         modifier = Modifier
@@ -88,7 +91,7 @@ fun StartupCheckScreen(
 
             Spacer(Modifier.height(6.dp))
 
-            if (!hasFailed) {
+            if (!hasFailed && !hasWarning) {
                 Text(
                     text = "Verificando prerequisitos…",
                     color = Color(0xFF757575),
@@ -112,7 +115,7 @@ fun StartupCheckScreen(
                                 .weight(1f)
                                 .padding(top = 27.dp)
                         ) {
-                            StepConnector(done = step.status == StepStatus.OK)
+                            StepConnector(done = step.status == StepStatus.OK || step.status == StepStatus.WARNING)
                         }
                     }
                 }
@@ -120,11 +123,19 @@ fun StartupCheckScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Error message
+            // Error / warning message
             if (failedStep != null) {
                 Text(
                     text = failedStep.errorMessage,
                     color = Color(0xFFFF5252),
+                    fontSize = 13.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 20.sp
+                )
+            } else if (warningStep != null) {
+                Text(
+                    text = warningStep.errorMessage,
+                    color = Color(0xFFFFA726),
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,
                     lineHeight = 20.sp
@@ -169,6 +180,7 @@ private fun StepNode(step: PrerequisiteStep, number: Int) {
             StepStatus.PENDING  -> Color(0xFF1A1A1A)
             StepStatus.CHECKING -> Color(0xFF0D1B4B)
             StepStatus.OK       -> Color(0xFF0A3D1A)
+            StepStatus.WARNING  -> Color(0xFF3D2800)
             StepStatus.FAILED   -> Color(0xFF3D0A0A)
         },
         animationSpec = tween(400),
@@ -179,6 +191,7 @@ private fun StepNode(step: PrerequisiteStep, number: Int) {
             StepStatus.PENDING  -> Color(0xFF3A3A3A)
             StepStatus.CHECKING -> Color(0xFF3F51B5)
             StepStatus.OK       -> Color(0xFF4CAF50)
+            StepStatus.WARNING  -> Color(0xFFFFA726)
             StepStatus.FAILED   -> Color(0xFFF44336)
         },
         animationSpec = tween(400),
@@ -189,6 +202,7 @@ private fun StepNode(step: PrerequisiteStep, number: Int) {
             StepStatus.PENDING  -> Color(0xFF4A4A4A)
             StepStatus.CHECKING -> Color(0xFF7986CB)
             StepStatus.OK       -> Color(0xFF66BB6A)
+            StepStatus.WARNING  -> Color(0xFFFFA726)
             StepStatus.FAILED   -> Color(0xFFEF5350)
         },
         animationSpec = tween(400),
@@ -224,6 +238,12 @@ private fun StepNode(step: PrerequisiteStep, number: Int) {
                     contentDescription = null,
                     tint = Color(0xFF69F0AE),
                     modifier = Modifier.size(28.dp)
+                )
+                StepStatus.WARNING -> Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = Color(0xFFFFA726),
+                    modifier = Modifier.size(26.dp)
                 )
                 StepStatus.FAILED -> Icon(
                     imageVector = Icons.Default.Close,

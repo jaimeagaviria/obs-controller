@@ -3,14 +3,15 @@
     <section class="section py-4">
       <div class="container">
 
-        <div class="is-flex is-align-items-center is-justify-content-space-between mb-4">
+        <div class="is-flex is-align-items-center is-justify-content-space-between mb-3">
           <h1 class="title is-5 has-text-white mb-0">Preview Cámaras</h1>
-          <span class="tag is-dark is-medium">VDO.ninja</span>
+          <span class="tag is-dark is-small">HLS · ~3s latencia</span>
         </div>
 
-        <!-- Sin cámaras -->
+        <!-- Sin cámaras habilitadas -->
         <div v-if="!enabledCameras.length" class="has-text-centered has-text-grey py-6">
-          Sin cámaras habilitadas. Configúralas en <RouterLink to="/config" class="has-text-info">Config</RouterLink>.
+          Sin cámaras habilitadas. Configúralas en
+          <RouterLink to="/config" class="has-text-info">Config</RouterLink>.
         </div>
 
         <template v-else>
@@ -28,37 +29,43 @@
             <button
               v-if="selectedCam !== null"
               class="button is-medium is-danger cam-btn-close"
-              @click="selectedCam = null"
+              @click="closePreview"
               title="Cerrar preview"
             >
               ✕
             </button>
           </div>
 
-          <!-- Aviso de orientación -->
+          <!-- Aviso orientación -->
           <div v-if="selectedCam !== null" class="orientation-warning mb-3">
-            <span class="icon-text has-text-warning">
-              <span>Si el video aparece en vertical, el colaborador tiene el giro del celular bloqueado — pedirle que lo desbloquee en la configuración rápida de Android.</span>
-            </span>
+            Si el video aparece en vertical, el colaborador tiene el giro del celular bloqueado.
+            Pedirle que <strong>desbloquee la rotación</strong> en la configuración rápida de
+            Android y gire el teléfono en horizontal.
           </div>
 
-          <!-- Preview iframe -->
+          <!-- Player HLS -->
           <div v-if="selectedCam !== null" class="preview-frame-wrapper">
-            <iframe
-              :key="selectedCam"
-              :src="previewUrl"
-              class="preview-frame"
-              allow="autoplay;fullscreen"
-              allowfullscreen
-              referrerpolicy="no-referrer"
+            <video
+              ref="videoEl"
+              class="preview-video"
+              autoplay
+              muted
+              playsinline
+              controls
             />
-            <div class="preview-label">jaula_camara{{ selectedCam }}</div>
+            <div v-if="hlsError" class="preview-error">
+              {{ hlsError }}
+            </div>
+            <div class="preview-label">cam{{ selectedCam }} · HLS via MediaMTX</div>
           </div>
 
-          <!-- Estado inicial -->
+          <!-- Estado sin cámara seleccionada -->
           <div v-else class="preview-placeholder">
             <div class="has-text-grey is-size-6">Selecciona una cámara para ver el preview</div>
-            <div class="has-text-grey is-size-7 mt-2">Solo se conecta una cámara a la vez para no afectar la transmisión</div>
+            <div class="has-text-grey is-size-7 mt-2">
+              El stream llega directo desde el celular → MediaMTX → aquí.<br>
+              No pasa por OBS Studio.
+            </div>
           </div>
         </template>
 
@@ -68,30 +75,85 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
+import Hls from 'hls.js'
 import { useWebSocket } from '../composables/useWebSocket.js'
 
 const { state } = useWebSocket()
 
 const selectedCam = ref(null)
+const videoEl    = ref(null)
+const hlsError   = ref(null)
+let   hlsInstance = null
 
 const enabledCameras = computed(() =>
   Array.isArray(state.value.enabledCameras) ? state.value.enabledCameras : []
 )
 
-const previewUrl = computed(() => {
-  if (selectedCam.value === null) return ''
-  return `https://vdo.ninja/?view=jaula_camara${selectedCam.value}&bitrate=800&width=640&height=360&cleanoutput&autostart&noaudio`
-})
+// URL HLS proxiada a través del nginx del frontend (mismo puerto 5180)
+// nginx reenvía /hls/ → MediaMTX :8888 en el servidor
+function hlsUrl(cam) {
+  return `/hls/cam${cam}/index.m3u8`
+}
+
+function destroyHls() {
+  if (hlsInstance) {
+    hlsInstance.destroy()
+    hlsInstance = null
+  }
+}
+
+function closePreview() {
+  destroyHls()
+  selectedCam.value = null
+  hlsError.value = null
+}
 
 function selectCamera(cam) {
-  // Si se pulsa la misma, no hace nada (el iframe ya está cargado)
   if (selectedCam.value === cam) return
-  // Cambiar destruye el iframe anterior (v-if + :key) → desconecta WebRTC
-  selectedCam.value = null
-  // Tick siguiente para que Vue destruya el iframe antes de crear el nuevo
-  setTimeout(() => { selectedCam.value = cam }, 50)
+  closePreview()
+  selectedCam.value = cam
 }
+
+// Iniciar hls.js cuando el <video> esté montado y haya cámara seleccionada
+watch([selectedCam, videoEl], async ([cam, el]) => {
+  if (!cam || !el) return
+  await nextTick()
+  destroyHls()
+  hlsError.value = null
+
+  const url = hlsUrl(cam)
+
+  if (Hls.isSupported()) {
+    hlsInstance = new Hls({
+      lowLatencyMode: true,
+      liveSyncDurationCount: 2,
+      liveMaxLatencyDurationCount: 5
+    })
+    hlsInstance.loadSource(url)
+    hlsInstance.attachMedia(el)
+    hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+      el.play().catch(() => {})
+    })
+    hlsInstance.on(Hls.Events.ERROR, (_, data) => {
+      if (data.fatal) {
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          hlsError.value = 'El celular no está transmitiendo en este momento.'
+        } else {
+          hlsError.value = `Error de stream: ${data.details}`
+        }
+      }
+    })
+  } else if (el.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari — soporta HLS nativo
+    el.src = url
+    el.play().catch(() => {})
+  } else {
+    hlsError.value = 'Este navegador no soporta HLS.'
+  }
+})
+
+onUnmounted(destroyHls)
 </script>
 
 <style scoped>
@@ -107,13 +169,8 @@ function selectCamera(cam) {
   align-items: center;
 }
 
-.cam-btn {
-  min-width: 90px;
-}
-
-.cam-btn-close {
-  margin-left: auto;
-}
+.cam-btn { min-width: 90px; }
+.cam-btn-close { margin-left: auto; }
 
 .orientation-warning {
   background: rgba(255, 190, 0, 0.08);
@@ -124,6 +181,7 @@ function selectCamera(cam) {
   color: #f0c040;
   line-height: 1.4;
 }
+.orientation-warning strong { color: #ffd060; }
 
 .preview-frame-wrapper {
   position: relative;
@@ -132,15 +190,28 @@ function selectCamera(cam) {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #333;
-  /* 16:9 aspect ratio */
   aspect-ratio: 16 / 9;
 }
 
-.preview-frame {
+.preview-video {
   width: 100%;
   height: 100%;
-  border: none;
   display: block;
+  object-fit: contain;
+  background: #000;
+}
+
+.preview-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.7);
+  color: #ff6b6b;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 1rem;
 }
 
 .preview-label {
@@ -148,8 +219,11 @@ function selectCamera(cam) {
   bottom: 8px;
   left: 10px;
   font-size: 0.7rem;
-  color: rgba(255,255,255,0.4);
+  color: rgba(255,255,255,0.45);
   font-family: monospace;
+  background: rgba(0,0,0,0.4);
+  padding: 2px 6px;
+  border-radius: 4px;
   pointer-events: none;
 }
 

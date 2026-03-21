@@ -263,12 +263,18 @@ const availableCameras = computed(() =>
   [1, 2, 3, 4, 5, 6].filter(c => !form.value.enabledCameras.includes(c))
 )
 
+function sendCamerasNow() {
+  send({ type: 'SET_MATCH_CONFIG', payload: { enabledCameras: form.value.enabledCameras } })
+}
+
 function addCamera(cam) {
   form.value.enabledCameras = [...form.value.enabledCameras, cam]
+  sendCamerasNow()
 }
 
 function removeCamera(cam) {
   form.value.enabledCameras = form.value.enabledCameras.filter(c => c !== cam)
+  sendCamerasNow()
 }
 
 function onDragStart(index) {
@@ -285,6 +291,7 @@ function onDrop(index) {
   const [moved] = cameras.splice(dragIndex.value, 1)
   cameras.splice(index, 0, moved)
   form.value.enabledCameras = cameras
+  sendCamerasNow()
 }
 
 function onDragEnd() {

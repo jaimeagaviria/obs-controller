@@ -16,10 +16,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
-enum class StepStatus { PENDING, CHECKING, OK, FAILED }
+enum class StepStatus { PENDING, CHECKING, OK, WARNING, FAILED }
 
 data class PrerequisiteStep(
     val label: String,
@@ -42,7 +44,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun initialSteps() = listOf(
         PrerequisiteStep("Controlador OBS", StepStatus.PENDING),
-        PrerequisiteStep("OBS Studio", StepStatus.PENDING)
+        PrerequisiteStep("OBS Studio", StepStatus.PENDING)   // informativo, no bloqueante
     )
     private val _prerequisiteSteps = MutableStateFlow(initialSteps())
     val prerequisiteSteps: StateFlow<List<PrerequisiteStep>> = _prerequisiteSteps.asStateFlow()
@@ -50,13 +52,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _prerequisitesDone = MutableStateFlow(false)
     val prerequisitesDone: StateFlow<Boolean> = _prerequisitesDone.asStateFlow()
 
+    // Cámaras habilitadas — espejo reactivo del WebSocket STATE_UPDATE
+    private val _enabledCameras = MutableStateFlow<List<Int>>(emptyList())
+    val enabledCameras: StateFlow<List<Int>> = _enabledCameras.asStateFlow()
+
     private val _streamDurationSeconds = MutableStateFlow(0L)
     val streamDurationSeconds: StateFlow<Long> = _streamDurationSeconds.asStateFlow()
 
     private var durationJob: Job? = null
 
     init {
-        // Restart stream when camera number changes while streaming
+        // Mantener _enabledCameras sincronizado con el WebSocket en todo momento
+        viewModelScope.launch {
+            obsApiClient.enabledCameras.collect { cameras ->
+                if (cameras.isNotEmpty()) {
+                    _enabledCameras.value = cameras
+                }
+            }
+        }
+
+        // Reiniciar stream si cambia el número de cámara mientras se transmite
         viewModelScope.launch {
             var previousConfig: AppConfig? = null
             config.collect { newConfig ->
@@ -73,7 +88,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Track stream duration
+        // Contador de duración del stream
         viewModelScope.launch {
             streamState.collect { state ->
                 when (state) {
@@ -118,6 +133,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val cfg = config.value
         if (cfg.srtHost.isBlank()) return
 
+        // Reconectar WebSocket con el host de streaming
+        // (ya estaba conectado desde startup, esto lo refresca)
         obsApiClient.connect(cfg.obsApiHost)
         srtStreamer.startStream(cfg)
 
@@ -138,7 +155,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _prerequisiteSteps.value = initialSteps()
             delay(300)
 
-            // Step 1: OBS Controller reachable
+            // Step 1: Controlador OBS alcanzable (HTTP — rápido y directo)
             _prerequisiteSteps.value = updateStep(0, StepStatus.CHECKING)
             val host = config.value.obsApiHost
             if (!obsApiClient.isServerReachable(host)) {
@@ -147,16 +164,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 return@launch
             }
             _prerequisiteSteps.value = updateStep(0, StepStatus.OK)
-            delay(300)
 
-            // Step 2: OBS Studio connected
-            _prerequisiteSteps.value = updateStep(1, StepStatus.CHECKING)
-            if (!obsApiClient.isObsConnected(host)) {
-                _prerequisiteSteps.value = updateStep(1, StepStatus.FAILED,
-                    "No fue posible conectarse con OBS Studio.\nVerifica que esté ejecutándose.")
-                return@launch
+            // Abrir WebSocket — el servidor enviará STATE_UPDATE de inmediato
+            // (contiene enabledCameras + obsConnected)
+            obsApiClient.connect(host)
+
+            // Esperar primer STATE_UPDATE (máx. 3s) para obtener estado real del servidor
+            withTimeoutOrNull(3000) {
+                obsApiClient.enabledCameras.first { it.isNotEmpty() }
+            } ?: run {
+                // Fallback si el servidor tardó o no envió cámaras configuradas
+                _enabledCameras.value = (1..6).toList()
             }
-            _prerequisiteSteps.value = updateStep(1, StepStatus.OK)
+
+            delay(200)
+
+            // Step 2: OBS Studio — informativo desde STATE_UPDATE, no bloquea al camarógrafo
+            _prerequisiteSteps.value = updateStep(1, StepStatus.CHECKING)
+            val obsReady = obsApiClient.obsConnectedRemote.value
+            _prerequisiteSteps.value = updateStep(
+                1,
+                if (obsReady) StepStatus.OK else StepStatus.WARNING,
+                if (obsReady) "" else "OBS Studio no está disponible.\nEl director deberá abrirlo antes de la transmisión."
+            )
             delay(200)
 
             _prerequisitesDone.value = true

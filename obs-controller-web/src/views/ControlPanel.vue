@@ -48,12 +48,18 @@
           <span class="tag is-medium" :class="state.obsConnected ? 'is-success' : 'is-danger'">
             OBS: {{ state.obsConnected ? 'Conectado' : 'Desconectado' }}
           </span>
-          <span v-if="state.obsConnectionError && !state.obsConnected" class="ml-2 has-text-danger is-size-7">
-            {{ state.obsConnectionError }}
-          </span>
           <span v-if="state.lastObsCommandError" class="ml-2 has-text-warning is-size-7">
             Cmd error: {{ state.lastObsCommandError }}
           </span>
+        </div>
+
+        <!-- OBS Disconnected Banner -->
+        <div v-if="!state.obsConnected" class="obs-disconnected-banner mb-4">
+          <span class="obs-disconnected-icon">⚠️</span>
+          <div>
+            <div class="obs-disconnected-title">OBS Studio no está disponible</div>
+            <div class="obs-disconnected-reason">{{ obsConnectionReason }}</div>
+          </div>
         </div>
 
         <!-- Match Control -->
@@ -64,20 +70,21 @@
           <div class="buttons is-centered mb-3">
             <button
               class="button is-success"
-              :disabled="state.matchRunning"
+              :disabled="state.matchRunning || !state.obsConnected"
               @click="send({ type: 'START_MATCH' })"
             >
               ▶ Iniciar
             </button>
             <button
               class="button is-warning"
-              :disabled="!state.matchRunning"
+              :disabled="!state.matchRunning || !state.obsConnected"
               @click="pendingMatchAction = 'STOP_MATCH'"
             >
               ⏸ Parar
             </button>
             <button
               class="button is-info"
+              :disabled="!state.obsConnected"
               @click="pendingMatchAction = 'RESET_MATCH'"
             >
               ↺ Reset
@@ -93,6 +100,7 @@
                 :key="p"
                 class="button is-small"
                 :class="state.period === p ? 'is-primary' : 'is-dark'"
+                :disabled="!state.obsConnected"
                 @click="send({ type: 'SET_PERIOD', payload: { period: p } })"
               >
                 {{ p }}
@@ -119,11 +127,13 @@
               <div class="score-control">
                 <button
                   class="button is-danger"
+                  :disabled="!state.obsConnected"
                   @click="requestGoal('UNDO_GOAL_HOME')"
                 >−</button>
                 <span class="score-number">{{ state.homeScore }}</span>
                 <button
                   class="button is-success"
+                  :disabled="!state.obsConnected"
                   @click="requestGoal('GOAL_HOME')"
                 >+</button>
               </div>
@@ -141,11 +151,13 @@
               <div class="score-control">
                 <button
                   class="button is-danger"
+                  :disabled="!state.obsConnected"
                   @click="requestGoal('UNDO_GOAL_AWAY')"
                 >−</button>
                 <span class="score-number">{{ state.awayScore }}</span>
                 <button
                   class="button is-success"
+                  :disabled="!state.obsConnected"
                   @click="requestGoal('GOAL_AWAY')"
                 >+</button>
               </div>
@@ -226,6 +238,15 @@ function resetAndAdvancePeriod() {
   send({ type: 'SET_PERIOD', payload: { period: nextPeriod } })
 }
 
+const obsConnectionReason = computed(() => {
+  const err = state.value.obsConnectionError
+  if (!err) return 'Verificando conexión...'
+  if (err.includes('ECONNREFUSED')) return 'OBS Studio no está abierto o el puerto WebSocket no está activo.'
+  if (err.includes('ETIMEDOUT') || err.includes('timeout')) return 'Tiempo de conexión agotado. Verifica la IP y el puerto en Configuración.'
+  if (err.includes('ENOTFOUND') || err.includes('getaddrinfo')) return 'Host no encontrado. Verifica la dirección IP en Configuración.'
+  return 'No se puede conectar con OBS. Verifica la configuración.'
+})
+
 const formattedTime = computed(() => {
   const s = state.value.matchTimeSeconds
   const minutes = Math.floor(s / 60)
@@ -259,6 +280,36 @@ const formattedTime = computed(() => {
   min-width: 2rem;
   text-align: center;
   line-height: 1;
+}
+
+.obs-disconnected-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: rgba(255, 56, 96, 0.12);
+  border: 1px solid rgba(255, 56, 96, 0.4);
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  color: #ff6b88;
+}
+
+.obs-disconnected-icon {
+  font-size: 1.4rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.obs-disconnected-title {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #ff6b88;
+  margin-bottom: 0.15rem;
+}
+
+.obs-disconnected-reason {
+  font-size: 0.78rem;
+  color: #cc8899;
+  line-height: 1.4;
 }
 
 .box.has-background-dark {

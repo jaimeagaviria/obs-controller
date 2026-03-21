@@ -56,7 +56,6 @@ data class ResolutionOption(
 )
 
 private val resolutionOptions = listOf(
-    ResolutionOption("720p", 1280, 720, 30),
     ResolutionOption("1080p", 1920, 1080, 30),
     ResolutionOption("1080p60", 1920, 1080, 60)
 )
@@ -80,7 +79,7 @@ fun ConfigScreen(
                 it.width == currentConfig.resolutionWidth &&
                     it.height == currentConfig.resolutionHeight &&
                     it.fps == currentConfig.fps
-            } ?: resolutionOptions[1]
+            } ?: resolutionOptions[0]
         )
     }
     var selectedBitrate by remember(currentConfig) { mutableIntStateOf(currentConfig.videoBitrateKbps) }
